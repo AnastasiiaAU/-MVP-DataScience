@@ -294,7 +294,23 @@ async def save_notification(session: AsyncSession, user_id: int, risk_assessment
     return notification
 
 
+def _risk_matches_user(risk: RiskAssessment, user: User) -> bool:
+    """Проверяет, подходит ли риск под фильтры пользователя (порог, ОКВЭД, регионы)."""
+    if _risk_score(risk.risk_level) < _risk_score(user.risk_threshold):
+        return False
+    okveds = _normalize_str_list(risk.okved_codes)
+    if user.selected_okveds and okveds and not set(user.selected_okveds).intersection(okveds):
+        return False
+    regions = _normalize_str_list(
+        risk.summary.affected_regions if risk.summary else []
+    )
+    if user.selected_regions and regions and not set(user.selected_regions).intersection(regions):
+        return False
+    return True
+
+
 async def get_user_risks(session: AsyncSession, telegram_id: int, limit: int = 10) -> list[RiskAssessment]:
+    # Сначала — риски, по которым уже было уведомление пользователю
     stmt = (
         select(RiskAssessment)
         .join(Notification, Notification.risk_assessment_id == RiskAssessment.id)
@@ -307,4 +323,23 @@ async def get_user_risks(session: AsyncSession, telegram_id: int, limit: int = 1
         .limit(limit)
     )
     result = await session.execute(stmt)
-    return list(result.scalars().unique().all())
+    risks = list(result.scalars().unique().all())
+    if risks:
+        return risks
+
+    # Если уведомлений ещё не было — показываем риски по подпискам (подходящие по фильтрам)
+    user = await get_user(session, telegram_id)
+    if not user:
+        return []
+    stmt = (
+        select(RiskAssessment)
+        .join(Summary, Summary.id == RiskAssessment.summary_id)
+        .join(Article, Article.id == Summary.article_id)
+        .options(selectinload(RiskAssessment.summary).selectinload(Summary.article))
+        .order_by(RiskAssessment.created_at.desc())
+        .limit(limit * 3)
+    )
+    result = await session.execute(stmt)
+    all_recent = list(result.scalars().unique().all())
+    matching = [r for r in all_recent if _risk_matches_user(r, user)]
+    return matching[:limit]

@@ -1,4 +1,9 @@
 import asyncio
+import sys
+from pathlib import Path
+
+# Корень проекта в path для импорта config при запуске из любой директории
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from telethon import TelegramClient
 

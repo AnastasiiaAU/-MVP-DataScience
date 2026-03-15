@@ -8,8 +8,10 @@ COPY pyproject.toml README.md ./
 RUN pip install --no-cache-dir .
 
 COPY . .
+RUN chmod +x /app/entrypoint.sh
 
 # Для Telethon: .session файл должен быть доступен
 VOLUME ["/app/sessions"]
 
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["python", "main.py"]
