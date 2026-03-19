@@ -16,6 +16,7 @@ async def _send_notifications() -> dict[str, int]:
     """Найти новые RiskAssessment без уведомлений и разослать подходящим пользователям."""
     from bot.notifications import send_risk_alert
     from config import settings
+    from db.engine import engine
     from db.crud import get_users_for_notification, save_notification
     from db.engine import session_maker
     from db.models import Notification, RiskAssessment, Summary
@@ -25,6 +26,11 @@ async def _send_notifications() -> dict[str, int]:
 
     bot = Bot(token=settings.BOT_TOKEN)
     try:
+        # Celery запускает синхронную задачу, внутри которой мы создаём event-loop через `asyncio.run()`.
+        # Чтобы asyncpg/SQLAlchemy не держали соединения, привязанные к прошлому loop,
+        # явно "сбрасываем" пул соединений.
+        await engine.dispose()
+
         async with session_maker() as session:
             pending_stmt = (
                 select(RiskAssessment)

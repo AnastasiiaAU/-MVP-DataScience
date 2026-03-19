@@ -239,47 +239,43 @@ async def get_users_for_notification(
     normalized_okveds = _normalize_str_list(okved_codes)
     normalized_regions = _normalize_str_list(regions)
     current_risk_score = _risk_score(min_risk_level)
-    dialect_name = session.bind.dialect.name if session.bind is not None else ""
 
-    if dialect_name == "sqlite":
-        users = list((await session.execute(select(User).where(User.is_active.is_(True)))).scalars().all())
+    # Важно: для ОКВЭД нам нужен "префиксный" матч (например, подписка `46` должна матчить `46.34`),
+    # поэтому фильтрацию делаем в Python и не полагаемся на SQL `overlap` (оно требует точных совпадений).
+    users = list(
+        (await session.execute(select(User).where(User.is_active.is_(True)))).scalars().all()
+    )
 
-        def _match_by_intersection(user_values: list[str], target_values: list[str]) -> bool:
-            if not target_values:
-                return True
-            if not user_values:
-                return True
-            return bool(set(user_values).intersection(target_values))
+    def _match_okved_prefix(user_codes: list[str], target_codes: list[str]) -> bool:
+        if not target_codes:
+            return True
+        if not user_codes:
+            return True
+        for uc in user_codes:
+            for tc in target_codes:
+                if tc == uc or tc.startswith(f"{uc}.") or tc.startswith(uc):
+                    return True
+        return False
 
-        return [
-            user
-            for user in users
-            if _match_by_intersection(user.selected_okveds, normalized_okveds)
-            and _match_by_intersection(user.selected_regions, normalized_regions)
-            and _risk_score(user.risk_threshold) <= current_risk_score
-        ]
+    def _match_regions_exact(user_regions: list[str], target_regions: list[str]) -> bool:
+        if not target_regions:
+            return True
+        if not user_regions:
+            return True
+        # Регионы считаем точным совпадением по строкам.
+        return bool(set(user_regions).intersection(target_regions))
 
-    stmt = select(User).where(User.is_active.is_(True))
+    matched: list[User] = []
+    for user in users:
+        if _risk_score(user.risk_threshold) > current_risk_score:
+            continue
+        if not _match_okved_prefix(user.selected_okveds, normalized_okveds):
+            continue
+        if not _match_regions_exact(user.selected_regions, normalized_regions):
+            continue
+        matched.append(user)
 
-    if normalized_okveds:
-        stmt = stmt.where(
-            or_(
-                func.cardinality(User.selected_okveds) == 0,
-                User.selected_okveds.overlap(normalized_okveds),
-            )
-        )
-
-    if normalized_regions:
-        stmt = stmt.where(
-            or_(
-                func.cardinality(User.selected_regions) == 0,
-                User.selected_regions.overlap(normalized_regions),
-            )
-        )
-
-    users = list((await session.execute(stmt)).scalars().all())
-
-    return [user for user in users if _risk_score(user.risk_threshold) <= current_risk_score]
+    return matched
 
 
 async def save_notification(session: AsyncSession, user_id: int, risk_assessment_id: int) -> Notification:

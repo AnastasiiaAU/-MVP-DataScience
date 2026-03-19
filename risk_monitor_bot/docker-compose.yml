@@ -37,7 +37,7 @@ services:
 
   celery-worker:
     build: .
-    command: ["celery", "-A", "tasks.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+    command: ["celery", "-A", "tasks.celery_app", "worker", "--loglevel=info", "--concurrency=1"]
     env_file: .env
     environment:
       PYTHONPATH: /app

@@ -78,7 +78,12 @@ class RiskClassifier:
             self.client = client
         else:
             self._http_client = httpx.AsyncClient(timeout=60.0)
-            self.client = AsyncOpenAI(api_key=api_key, http_client=self._http_client)
+            # OpenRouter is OpenAI-compatible: chat.completions endpoint is the same.
+            self.client = AsyncOpenAI(
+                api_key=api_key,
+                http_client=self._http_client,
+                base_url="https://openrouter.ai/api/v1",
+            )
 
     async def close(self) -> None:
         if self._owns_client and self._http_client is not None:

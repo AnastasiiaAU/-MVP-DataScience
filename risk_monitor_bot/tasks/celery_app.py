@@ -1,18 +1,7 @@
 from celery import Celery
-from celery.signals import worker_process_init
 from celery.schedules import crontab
 
 from config import settings
-
-
-@worker_process_init.connect
-def _dispose_db_pool_after_fork(**kwargs):
-    """Сбросить пул соединений БД после fork воркера, иначе asyncpg даёт "another operation in progress"."""
-    try:
-        from db.engine import engine
-        engine.dispose()
-    except Exception:
-        pass
 
 
 app = Celery(

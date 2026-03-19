@@ -24,9 +24,9 @@ async def _process_batch() -> dict[str, int]:
     from ml.risk_classifier import RiskClassifier
     from ml.summarizer import NewsSummarizer
 
-    # Каждый asyncio.run() создаёт новый event loop; старые соединения привязаны к прошлому loop.
-    # Сбрасываем пул, чтобы новые соединения создавались в текущем loop.
-    engine.dispose()
+    # Важно: AsyncEngine.dispose() — корутина, её нужно awaited.
+    # Если не await'ить, пул соединений может оказаться в неконсистентном состоянии.
+    await engine.dispose()
 
     summarizer = NewsSummarizer(api_key=settings.OPENAI_API_KEY, model=settings.OPENAI_MODEL)
     classifier = RiskClassifier(
