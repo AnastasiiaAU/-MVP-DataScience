@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "risk-monitor-bot"
+version = "0.1.0"
+description = "Telegram bot for business risk monitoring"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "aiogram>=3.22",
+  "telethon>=1.36",
+  "sqlalchemy[asyncio]>=2.0",
+  "asyncpg",
+  "alembic",
+  "celery[redis]>=5.3",
+  "flower",
+  "redis",
+  "openai>=1.0",
+  "tenacity",
+  "pydantic-settings",
+  "httpx",
+  "python-dotenv",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "aiosqlite",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bot*", "parser*", "ml*", "db*", "tasks*"]
